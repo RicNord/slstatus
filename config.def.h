@@ -1,7 +1,7 @@
 /* See LICENSE file for copyright and license details. */
 
 /* interval between updates (in ms) */
-const unsigned int interval = 1000;
+const unsigned int interval = 2000;
 
 /* text to show if no value can be retrieved */
 static const char unknown_str[] = "n/a";
@@ -68,6 +68,7 @@ static const struct arg args[] = {
 	/* function format              argument */
 	{ keymap, "%s | ",           NULL },
 	{ leaked_ip, "IP %s | ",         NULL },
+	{ run_command, "Vol %3s%% | ",       "amixer get Master | awk -F'[][]' 'END{ print $2 }'" },
 	{ wifi_perc, "WIFI %3s%% | ",       "wlo1" },
 	{ battery_perc, "Bat %3s%% | ",    "BAT0" },
 	{ datetime, "%s",               "%b %d %H:%M" },
