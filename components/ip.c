@@ -5,6 +5,8 @@
 #include <netdb.h>
 #include <stdio.h>
 #include <string.h>
+#include <stddef.h>
+#include <stdlib.h>
 #if defined(__OpenBSD__)
 	#include <sys/socket.h>
 	#include <sys/types.h>
@@ -15,6 +17,91 @@
 
 #include "../slstatus.h"
 #include "../util.h"
+
+struct ipalias {
+  char ip[16];
+  char alias[14];
+};
+
+static int
+get_aliases(struct ipalias *p_ipalias[]) {
+  char ip_alias[41];
+  char *homedir = strcat(getenv("HOME"), "/");
+  char *alias_file_name = ".ip_alias";
+  char *ip_alias_path =
+      (char *)malloc(strlen(homedir) + strlen(alias_file_name) + 1);
+  strcpy(ip_alias_path, strcat(homedir, alias_file_name));
+  char *config_delimiter = ":";
+  FILE *fip;
+
+  if ((fip = fopen(ip_alias_path, "r"))) {
+    int i = 0;
+    while (fgets(ip_alias, sizeof(ip_alias), fip)) {
+      char *ip = strtok(ip_alias, config_delimiter);
+      char *alias = strtok(NULL, config_delimiter);
+      p_ipalias[i] = (struct ipalias *)malloc(sizeof(struct ipalias));
+      strcpy(p_ipalias[i]->ip, ip);
+      strcpy(p_ipalias[i]->alias, alias);
+      i++;
+    }
+    free(ip_alias_path);
+    fclose(fip);
+    return i > 0 ? i: 0;
+  } else {
+    free(ip_alias_path);
+    return 0;
+  }
+}
+
+static char *
+str_replace(char *orig, char *rep, char *with) {
+/* credit to 
+ * https://stackoverflow.com/questions/779875/what-function-is-to-replace-a-substring-from-a-string-in-c 
+*/
+    char *result; // the return string
+    char *ins;    // the next insert point
+    char *tmp;    // varies
+    int len_rep;  // length of rep (the string to remove)
+    int len_with; // length of with (the string to replace rep with)
+    int len_front; // distance between rep and end of last rep
+    int count;    // number of replacements
+
+    // sanity checks and initialization
+    if (!orig || !rep)
+        return orig;
+    len_rep = strlen(rep);
+    if (len_rep == 0)
+        return orig; // empty rep causes infinite loop during count
+    if (!with)
+        with = "";
+    len_with = strlen(with);
+
+    // count the number of replacements needed
+    ins = orig;
+    for (count = 0; (tmp = strstr(ins, rep)); ++count) {
+        ins = tmp + len_rep;
+    }
+
+    tmp = result = malloc(strlen(orig) + (len_with - len_rep) * count + 1);
+
+    if (!result)
+        return orig;
+
+    // first time through the loop, all the variable are set correctly
+    // from here on,
+    //    tmp points to the end of the result string
+    //    ins points to the next occurrence of rep in orig
+    //    orig points to the remainder of orig after "end of rep"
+    while (count--) {
+        ins = strstr(orig, rep);
+        len_front = ins - orig;
+        tmp = strncpy(tmp, orig, len_front) + len_front;
+        tmp = strcpy(tmp, with) + len_with;
+        orig += len_front + len_rep; // move to next "end of rep"
+    }
+    strcpy(tmp, orig);
+    return result;
+}
 
 static const char *
 ip(const char *interface, unsigned short sa_family)
@@ -132,6 +219,27 @@ leaked_ip(void)
 	strcat(buf, "(");
 	sscanf(p, "%s", buf+strlen(buf));
 	strcat(buf, ")");
-	
+
+    /* Add string replacement of known ip:s to aliases */
+    static struct ipalias *p_ipalias[10];
+    static int ALIASES_LOADED;
+    static int ALIASES_ATTEMPTED;
+    if (!ALIASES_LOADED && !ALIASES_ATTEMPTED) {
+        ALIASES_LOADED = get_aliases(p_ipalias);
+        ALIASES_ATTEMPTED = 1;
+    } else {
+        ALIASES_ATTEMPTED = 1;
+    }
+    int i;
+    if (ALIASES_LOADED) {
+        for (i =0 ; i < ALIASES_LOADED; i++) {
+            char tmp_ip[16];
+            char tmp_alias[14];
+            strcpy(tmp_ip,p_ipalias[i]->ip);
+            strcpy(tmp_alias,p_ipalias[i]->alias);
+            strcpy(buf,str_replace(buf,tmp_ip , tmp_alias));
+        }
+    }
+
 	return buf;
 }
