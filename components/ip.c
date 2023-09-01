@@ -39,6 +39,7 @@ get_aliases(struct ipalias *p_ipalias[]) {
     while (fgets(ip_alias, sizeof(ip_alias), fip)) {
       char *ip = strtok(ip_alias, config_delimiter);
       char *alias = strtok(NULL, config_delimiter);
+      alias[strcspn(alias, "\n")] = 0;
       p_ipalias[i] = (struct ipalias *)malloc(sizeof(struct ipalias));
       strcpy(p_ipalias[i]->ip, ip);
       strcpy(p_ipalias[i]->alias, alias);
